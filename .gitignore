@@ -42,3 +42,44 @@ ansible/inventory.yml
 tmp/
 temp/
 *.tmp
+# Dependencies
+/docs//node_modules
+/docs//.pnp
+/docs/.pnp.js
+/docs/
+/docs/# Production / Build outputs
+/docs//build
+/docs//dist
+/docs//out
+/docs/.docusaurus
+/docs/.cache-loader
+/docs/
+/docs/# Environment Variables & Secrets
+/docs/.env
+/docs/.env.local
+/docs/.env.development.local
+/docs/.env.test.local
+/docs/.env.production.local
+/docs/
+/docs/# Logs
+/docs/npm-debug.log*
+/docs/yarn-debug.log*
+/docs/yarn-error.log*
+/docs/lerna-debug.log*
+/docs/
+/docs/# Testing
+/docs//coverage
+/docs/
+/docs/# Editor / System Files
+/docs/.DS_Store
+/docs/.vscode/*
+/docs/!.vscode/extensions.json
+/docs/.idea
+/docs/*.suo
+/docs/*.ntvs*
+/docs/*.njsproj
+/docs/*.sln
+/docs/*.sw?
+
+node_modules
+/frigate/frigate.py

@@ -1,0 +1,411 @@
+{
+    "metadata": {
+        "title": "Distributed Homelab: K3s, pfSense NAT, and Dual-VPN Media Stack",
+        "description": "Comprehensive Infrastructure-as-Code (IaC) setup for a distributed K3s cluster spanning OCI and on-premises Proxmox nodes behind a pfSense router. Features Argo CD GitOps, Rancher UI, Coolify PaaS, and a split-VPN media architecture.",
+        "version": "1.4.0",
+        "author": "vishveshpal",
+        "created": "2026-04-18",
+        "lastModified": "2026-04-18",
+        "tags": [
+            "kubernetes",
+            "k3s",
+            "pfsense",
+            "headscale",
+            "tailscale",
+            "argocd",
+            "rancher",
+            "coolify",
+            "media-server",
+            "gitops"
+        ]
+    },
+    "nodes": [
+        {
+            "unique-id": "oci-control-plane",
+            "name": "OCI K3s Control Plane & Headscale",
+            "type": "kubernetes-control-plane",
+            "description": "K3s master node and Headscale host running on Oracle Cloud Infrastructure. Acts as the brain of the cluster and the hub of the infrastructure VPN mesh.",
+            "metadata": {
+                "environment": "cloud",
+                "region": "oracle-cloud-free-tier"
+            },
+            "interfaces": [
+                {
+                    "unique-id": "k3s-api",
+                    "name": "K3s API Server",
+                    "type": "kubernetes-api",
+                    "protocol": "https",
+                    "port": 6443
+                },
+                {
+                    "unique-id": "headscale-vpn",
+                    "name": "Headscale VPN Server",
+                    "type": "wireguard",
+                    "protocol": "udp",
+                    "port": 41641
+                }
+            ],
+            "controls": [
+                {
+                    "unique-id": "oci-firewall",
+                    "name": "OCI Security List",
+                    "description": "Cloud firewall restricting inbound traffic strictly to API, SSH, and Wireguard UDP ports."
+                }
+            ],
+            "properties": {
+                "capabilities": [
+                    "k3s-server",
+                    "rancher-management-ui",
+                    "argo-cd-gitops",
+                    "cert-manager-dns01",
+                    "external-dns-cloudflare"
+                ],
+                "hardware": {
+                    "cpu": "4 vCPU (ARM Ampere A1)",
+                    "ram": "24GB"
+                },
+                "os": "ubuntu-22.04"
+            }
+        },
+        {
+            "unique-id": "pfsense-router",
+            "name": "pfSense Firewall & Gateway",
+            "type": "network-gateway",
+            "description": "Main perimeter network router handling NAT translation for the entire on-premise Proxmox environment.",
+            "metadata": {
+                "environment": "on-premise",
+                "location": "home-network-edge"
+            },
+            "interfaces": [
+                {
+                    "unique-id": "wan",
+                    "name": "WAN Interface",
+                    "type": "ethernet"
+                },
+                {
+                    "unique-id": "lan",
+                    "name": "Proxmox LAN",
+                    "type": "ethernet",
+                    "subnet": "192.168.5.0/24"
+                }
+            ],
+            "controls": [
+                {
+                    "unique-id": "nat-rules",
+                    "name": "Strict NAT Translation",
+                    "description": "Explicit Port forwarding rule sending UDP 41641 from WAN directly to the Proxmox K3s worker VM."
+                }
+            ],
+            "properties": {
+                "capabilities": [
+                    "nat-translation",
+                    "stateful-packet-inspection",
+                    "dhcp-server",
+                    "dns-resolver"
+                ]
+            }
+        },
+        {
+            "unique-id": "proxmox-hypervisor",
+            "name": "Proxmox VE Host",
+            "type": "hypervisor",
+            "description": "Bare-metal Proxmox Virtual Environment hypervisor hosting VMs and LXC containers behind the pfSense firewall.",
+            "metadata": {
+                "environment": "on-premise",
+                "hardware": "custom-build"
+            },
+            "interfaces": [
+                {
+                    "unique-id": "proxmox-bridge",
+                    "name": "vmbr0",
+                    "type": "bridge"
+                }
+            ],
+            "controls": [
+                {
+                    "unique-id": "zfs-encryption",
+                    "name": "ZFS Pool Encryption",
+                    "description": "Data-at-rest encryption for the main VM storage pool."
+                }
+            ],
+            "properties": {
+                "capabilities": [
+                    "vm-management",
+                    "lxc-container-management",
+                    "zfs-storage-management"
+                ],
+                "hardware": {
+                    "cpu": "AMD Ryzen 7",
+                    "ram": "96GB DDR4",
+                    "storage": "NVMe ZFS Pool"
+                },
+                "network": "192.168.5.0/24"
+            }
+        },
+        {
+            "unique-id": "ryzen-worker-node",
+            "name": "Ryzen Proxmox Worker Node",
+            "type": "kubernetes-worker",
+            "description": "K3s agent node running as a Proxmox VM, executing the cluster workloads and connecting back to OCI via Headscale.",
+            "metadata": {
+                "environment": "on-premise",
+                "os": "ubuntu-vm"
+            },
+            "interfaces": [
+                {
+                    "unique-id": "tailscale-mesh",
+                    "name": "Headscale VPN Interface",
+                    "type": "wireguard",
+                    "protocol": "udp",
+                    "port": 41641
+                }
+            ],
+            "controls": [],
+            "properties": {
+                "capabilities": [
+                    "k3s-agent",
+                    "containerd-runtime",
+                    "kube-proxy"
+                ],
+                "nodeIP": "192.168.5.30"
+            }
+        },
+        {
+            "unique-id": "coolify-paas",
+            "name": "Coolify PaaS LXC",
+            "type": "platform-service",
+            "description": "Self-hosted PaaS platform for rapid development deployments, running natively in a Proxmox LXC container.",
+            "metadata": {
+                "sslCertificate": "*.devcoolify.vishvesh.me"
+            },
+            "interfaces": [
+                {
+                    "unique-id": "coolify-web",
+                    "name": "Coolify UI",
+                    "type": "https",
+                    "port": 443
+                }
+            ],
+            "controls": [
+                {
+                    "unique-id": "coolify-ssl",
+                    "name": "Wildcard SSL Termination",
+                    "description": "Traefik/Caddy handles SSL termination for all PaaS deployments using the wildcard cert."
+                }
+            ],
+            "properties": {
+                "capabilities": [
+                    "docker-deployments",
+                    "nixpacks-builds",
+                    "database-provisioning"
+                ],
+                "containerType": "lxc",
+                "nodeIP": "192.168.5.31"
+            }
+        },
+        {
+            "unique-id": "media-automation",
+            "name": "Arr Stack Automation",
+            "type": "media-management",
+            "description": "Comprehensive media acquisition and processing stack hosted on the Ryzen infrastructure.",
+            "metadata": {
+                "environment": "on-premise"
+            },
+            "interfaces": [],
+            "controls": [],
+            "properties": {
+                "services": [
+                    "Sonarr",
+                    "Radarr",
+                    "Lidarr",
+                    "Tdarr",
+                    "Cleanuparr",
+                    "Scraparr",
+                    "Jackett"
+                ],
+                "storage": "NFS/ZFS Mounts"
+            }
+        },
+        {
+            "unique-id": "media-streaming",
+            "name": "Jellyfin & Jellyseerr",
+            "type": "media-streaming",
+            "description": "Media consumption services running with official Tailscale installed directly for external user access.",
+            "metadata": {
+                "environment": "on-premise"
+            },
+            "interfaces": [
+                {
+                    "unique-id": "official-tailscale",
+                    "name": "Tailscale Node",
+                    "type": "vpn",
+                    "protocol": "wireguard"
+                }
+            ],
+            "controls": [
+                {
+                    "unique-id": "tailscale-acls",
+                    "name": "Tailscale ACLs",
+                    "description": "Restricts external family and Smart TV access exclusively to port 8096 (Jellyfin) and 5055 (Jellyseerr)."
+                }
+            ],
+            "properties": {
+                "services": [
+                    "Jellyfin",
+                    "Jellyseerr"
+                ],
+                "hardwareAcceleration": "True (Ryzen APU/GPU)"
+            }
+        },
+        {
+            "unique-id": "cloudflare-api",
+            "name": "Cloudflare DNS & API",
+            "type": "external-service",
+            "description": "External Cloudflare service managing DNS records and providing API tokens for Let's Encrypt DNS-01 challenges.",
+            "metadata": {
+                "environment": "external-saas"
+            },
+            "interfaces": [],
+            "controls": [],
+            "properties": {
+                "capabilities": [
+                    "dns-hosting",
+                    "api-token-auth"
+                ]
+            }
+        },
+        {
+            "unique-id": "github-repo",
+            "name": "GitOps Repository",
+            "type": "version-control",
+            "description": "GitHub repository containing the Kubernetes manifests synchronized by Argo CD.",
+            "metadata": {
+                "environment": "external-saas"
+            },
+            "interfaces": [],
+            "controls": [],
+            "properties": {
+                "capabilities": [
+                    "source-of-truth",
+                    "version-control"
+                ]
+            }
+        },
+        {
+            "unique-id": "external-users",
+            "name": "Family & Friends",
+            "type": "user-group",
+            "description": "External users accessing media services securely via Smart TVs and mobile devices.",
+            "metadata": {
+                "environment": "remote"
+            },
+            "interfaces": [],
+            "controls": [],
+            "properties": {
+                "clientType": "Smart TVs, Mobile Devices"
+            }
+        }
+    ],
+    "interacts": [
+        {
+            "unique-id": "dns-cert-auth",
+            "name": "DNS-01 Challenge",
+            "source": "oci-control-plane",
+            "target": "cloudflare-api",
+            "description": "Cert-Manager uses Cloudflare API tokens to complete Let's Encrypt DNS-01 challenges. ExternalDNS uses it to sync A/CNAME records.",
+            "properties": {
+                "protocol": "https",
+                "auth": "api-token"
+            }
+        },
+        {
+            "unique-id": "gitops-sync",
+            "name": "Argo CD Sync",
+            "source": "oci-control-plane",
+            "target": "github-repo",
+            "description": "Argo CD continuously polls the Git repository and synchronizes cluster state with YAML manifests.",
+            "properties": {
+                "method": "git-pull"
+            }
+        },
+        {
+            "unique-id": "media-pipeline",
+            "name": "Media Processing Pipeline",
+            "source": "media-automation",
+            "target": "media-streaming",
+            "description": "Arr stack downloads and processes media, then sends webhooks to Jellyfin to update libraries.",
+            "properties": {
+                "integration": "api-webhooks"
+            }
+        }
+    ],
+    "connects": [
+        {
+            "unique-id": "oci-to-pfsense",
+            "name": "Headscale Traffic (WAN)",
+            "source": "oci-control-plane",
+            "target": "pfsense-router",
+            "description": "Headscale VPN mesh traffic travels from the OCI node and hits the pfSense WAN IP.",
+            "properties": {
+                "protocol": "wireguard/udp"
+            }
+        },
+        {
+            "unique-id": "pfsense-to-worker",
+            "name": "NAT Forwarding (LAN)",
+            "source": "pfsense-router",
+            "target": "ryzen-worker-node",
+            "description": "pfSense NAT translates and forwards the incoming UDP traffic directly to the internal Proxmox worker node.",
+            "properties": {
+                "protocol": "udp"
+            }
+        },
+        {
+            "unique-id": "worker-to-oci",
+            "name": "Worker Mesh Return",
+            "source": "ryzen-worker-node",
+            "target": "oci-control-plane",
+            "description": "The worker node communicates state and pod networking back to the control plane over the established tunnel.",
+            "properties": {
+                "protocol": "wireguard"
+            }
+        },
+        {
+            "unique-id": "users-to-media",
+            "name": "Tailscale Media Access",
+            "source": "external-users",
+            "target": "media-streaming",
+            "description": "Family and friends securely access Jellyfin via the official Tailscale network, entirely bypassing the Headscale infrastructure mesh.",
+            "properties": {
+                "protocol": "wireguard"
+            }
+        }
+    ],
+    "flows": [
+        {
+            "unique-id": "certificate-provisioning-flow",
+            "name": "Wildcard Cert Provisioning",
+            "description": "Automated SSL provisioning flow for *.devcoolify.vishvesh.me and K8s ingresses.",
+            "source": "oci-control-plane",
+            "target": "cloudflare-api",
+            "protocol": "https"
+        },
+        {
+            "unique-id": "cluster-mesh-flow",
+            "name": "Cluster Mesh Communication",
+            "description": "The primary network path for Kubernetes API and Pod-to-Pod communication.",
+            "source": "oci-control-plane",
+            "target": "ryzen-worker-node",
+            "protocol": "udp"
+        }
+    ],
+    "controls": [
+        {
+            "unique-id": "split-vpn-architecture",
+            "name": "Split VPN Topology",
+            "description": "Strict isolation constraint: Headscale is exclusively used for infrastructure backend (K3s mesh), while the official Tailscale node is exclusively for frontend user media access.",
+            "type": "access-control-policy",
+            "scope": "security"
+        }
+    ]
+}

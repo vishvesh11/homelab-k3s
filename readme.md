@@ -5,7 +5,6 @@ A complete guide and infrastructure-as-code for setting up a distributed K3s Kub
 ## 📋 Table of Contents
 
 - [Architecture](#architecture)
-- [Architecture Documentation (CALM)](#architecture-documentation-calm)
 - [Prerequisites](#prerequisites)
 - [Project Structure](#project-structure)
 - [Setup Instructions](#setup-instructions)
@@ -43,38 +42,7 @@ A complete guide and infrastructure-as-code for setting up a distributed K3s Kub
 - **Network**: Headscale-managed Tailscale VPN mesh network
 - **Infrastructure**: Terraform-provisioned, Ansible-configured
 
-## � Architecture Documentation (CALM)
-
-This project includes comprehensive architecture documentation following the **CALM OS (Common Architecture Language Model)** specification from FINOS Architecture as Code.
-
-### 📄 CALM File: [`architecture.calm.yaml`](architecture.calm.yaml)
-
-The CALM documentation provides:
-- **Machine-readable architecture model** for automated analysis and governance
-- **Detailed system relationships** and data flows
-- **Infrastructure configuration** and deployment procedures
-- **Security policies** and compliance requirements
-- **Risk assessment** and mitigation strategies
-- **Operational procedures** and monitoring guidelines
-
-**View the architecture:**
-```bash
-# Using CALM CLI (if installed)
-calm-cli validate architecture.calm.yaml
-calm-cli visualize architecture.calm.yaml
-
-# Or view directly in any YAML editor
-cat architecture.calm.yaml
-```
-
-The CALM model enables:
-- **Automated compliance checking**
-- **Architecture drift detection**
-- **Dependency analysis**
-- **Change impact assessment**
-- **Documentation generation**
-
-## �📦 Prerequisites
+## 📦 Prerequisites
 
 ### Required Tools:
 - Terraform (1.12+)
@@ -102,7 +70,6 @@ The CALM model enables:
 homelab-k3s/
 ├── README.md                          # This guide
 ├── .gitignore                         # Git ignore rules
-├── architecture.calm.yaml             # CALM OS Architecture Documentation
 ├── terraform/                         # Infrastructure as Code
 │   ├── main.tf                       # Main Terraform configuration
 │   ├── variables.tf                  # Variable definitions
@@ -373,3 +340,7 @@ This configuration is provided as-is for educational and reference purposes.
 ## 🤝 Contributing
 
 Feel free to suggest improvements and optimizations!
+
+
+npm install --legacy-peer-deps
+npm install webpack@5.105.0 --save-dev --legacy-peer-deps
