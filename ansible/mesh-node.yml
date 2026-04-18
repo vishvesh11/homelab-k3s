@@ -1,0 +1,83 @@
+---
+# PLAY 1: Ask the OCI node for a fresh Headscale Key
+- name: Generate Auth Key on Headscale
+  hosts: master
+  become: yes
+  tasks:
+    - name: Get the numeric ID of the k3s user
+      shell: 'headscale users list -o json | python3 -c "import sys,json; users=json.load(sys.stdin); print(next(u[''id''] for u in users if u[''name'']==''k3s''))"'
+      register: k3s_user_id
+
+    - name: Generate a fresh pre-auth key for the new node
+      command: "headscale preauthkeys create --user {{ k3s_user_id.stdout | trim }} --expiration 1h -o json"
+      register: new_headscale_key_raw
+
+    - name: Parse the auth key from JSON output
+      set_fact:
+        auth_key: "{{ (new_headscale_key_raw.stdout | from_json).key }}"
+
+    - name: Save key to memory for the next play
+      add_host:
+        name: "HEADSCALE_DATA"
+        auth_key: "{{ auth_key }}"
+
+# PLAY 2: Install and join the new Coolify LXC
+- name: Join New Node to Mesh
+  hosts: coolify_node
+  become: yes
+  tasks:
+    - name: Install curl and apt-transport-https
+      apt:
+        name:
+          - curl
+          - apt-transport-https
+          - gnupg
+        state: present
+        update_cache: yes
+
+    - name: Add Tailscale GPG key
+      shell: |
+        curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/focal.gpg | apt-key add -
+      args:
+        creates: /etc/apt/trusted.gpg.d/tailscale.gpg
+
+    - name: Add Tailscale repository
+      shell: |
+        curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/focal.noarch.list | tee /etc/apt/sources.list.d/tailscale.list
+      args:
+        creates: /etc/apt/sources.list.d/tailscale.list
+
+    - name: Install Tailscale
+      apt:
+        name: tailscale
+        state: present
+        update_cache: yes
+
+    - name: Start tailscaled daemon
+      shell: |
+        if ! pgrep tailscaled > /dev/null; then
+          tailscaled > /var/log/tailscaled.log 2>&1 &
+          sleep 3
+        fi
+      args:
+        executable: /bin/bash
+
+    - name: Wait for tailscaled socket to be ready
+      wait_for:
+        path: /var/run/tailscale/tailscaled.sock
+        timeout: 30
+
+    - name: Start Tailscale connection
+      shell: |
+        /usr/bin/tailscale up --login-server https://mesh.vishvesh.me \
+        --authkey {{ hostvars['HEADSCALE_DATA']['auth_key'] }} \
+        --accept-routes --reset
+      register: tailscale_start
+
+    - name: Get Tailscale IP
+      command: /usr/bin/tailscale ip -4
+      register: ts_ip
+
+    - name: Print the new Tailscale IP
+      debug:
+        msg: "Coolify Node successfully joined! Its Tailscale IP is: {{ ts_ip.stdout }}"

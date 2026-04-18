@@ -1,0 +1,44 @@
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+
+# Kubernetes Secrets
+*-secret.yml
+*-secret.yaml
+kube_files/*-secret*
+
+# SSH Keys
+*.pem
+*.pub
+id_rsa
+id_rsa.pub
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Sensitive configs
+/frigate/frigatconfig.yaml
+ansible/inventory.yml
+
+# Temporary files
+tmp/
+temp/
+*.tmp

@@ -1,0 +1,10 @@
+ls -l /dev/dri #check if drivers are present 
+apt update && apt install vainfo mesa-va-drivers radeontop -y #update and install vidoe processing drivers
+apt update && apt install vainfo mesa-va-drivers radeontop -y # check if drivers configured correctly 
+mkdir -p /opt/compreface && cd /opt/compreface #make directroy and cd into it 
+wget https://github.com/exadel-inc/CompreFace/releases/download/v1.2.0/CompreFace_1.2.0.zip # download 
+unzip # unzip CompreFace_1.2.0.zip
+docker compose up -d #run
+login generate api key 
+mkdir -p /opt/frigate-orchestrator
+cd /opt/frigate-orchestrator

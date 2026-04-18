@@ -1,0 +1,97 @@
+---
+# 1. Persistent Storage (So you don't lose your indexers/settings on restart)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jackett-config-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+# 2. The Deployment (Running Jackett strictly inside Kubernetes)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jackett
+  namespace: default
+  labels:
+    app: jackett
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jackett
+  template:
+    metadata:
+      labels:
+        app: jackett
+    spec:
+      containers:
+        - name: jackett
+          image: lscr.io/linuxserver/jackett:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: "Asia/Kolkata"
+          ports:
+            - containerPort: 9117
+              name: http
+          volumeMounts:
+            - name: jackett-config
+              mountPath: /config
+      volumes:
+        - name: jackett-config
+          persistentVolumeClaim:
+            claimName: jackett-config-pvc
+
+---
+# 3. The Internal Service (Routing traffic to the Pod)
+apiVersion: v1
+kind: Service
+metadata:
+  name: jackett-service
+  namespace: default
+spec:
+  selector:
+    app: jackett # This connects the service to the Deployment above
+  ports:
+    - port: 9117
+      targetPort: 9117
+
+---
+# 4. The Ingress (Using your exact Traefik/External-DNS/Cert-Manager setup)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jackett-ingress
+  namespace: default
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    external-dns.alpha.kubernetes.io/target: "100.64.0.2" # Your OCI Node Tailscale IP
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - jackett.vishvesh.me
+      secretName: jackett-tls
+  rules:
+    - host: jackett.vishvesh.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jackett-service # Points to the internal service above
+                port:
+                  number: 9117

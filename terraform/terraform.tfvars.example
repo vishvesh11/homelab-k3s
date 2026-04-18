@@ -1,0 +1,6 @@
+# Example Terraform Variables
+# Copy this to terraform.tfvars and fill in with your actual values
+
+proxmox_api_url   = "https://YOUR_PROXMOX_IP:8006/"
+proxmox_api_token = "YOUR_API_USER@YOUR_REALM!YOUR_TOKEN_NAME=YOUR_TOKEN_ID"
+ssh_public_key    = "ssh-rsa AAAAB3NzaC1yc2EA... your-email@example.com"

@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-ingress
+  namespace: argocd
+  annotations:
+    # 1. Get a proper Let's Encrypt certificate
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+
+    # 2. Tell Cloudflare to create the DNS record
+    external-dns.alpha.kubernetes.io/hostname: "argocd.vishvesh.me"
+
+    # 3. Point the DNS record to your private Tailscale IP
+    external-dns.alpha.kubernetes.io/target: "100.64.0.2"
+
+    # 4. CRITICAL: Turn OFF the Cloudflare Proxy (Grey Cloud)
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+spec:
+  tls:
+    - hosts:
+        - argocd.vishvesh.me
+      secretName: argocd-tls-secret # Cert-Manager creates this
+  rules:
+    - host: argocd.vishvesh.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 80

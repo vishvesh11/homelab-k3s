@@ -1,0 +1,24 @@
+---
+# 1. The Headless Service (No selector)
+apiVersion: v1
+kind: Service
+metadata:
+  name: coolify-dashboard-bridge
+  namespace: default
+spec:
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+# 2. The Manual Endpoint (Replaces ExternalName)
+apiVersion: v1
+kind: Endpoints
+metadata:
+  # This MUST exactly match the Service name above
+  name: coolify-dashboard-bridge
+  namespace: default
+subsets:
+  - addresses:
+      - ip: 100.64.0.5 # Your Coolify LXC Tailscale IP
+    ports:
+      - port: 8000
