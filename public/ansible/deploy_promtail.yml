@@ -1,0 +1,133 @@
+---
+- name: Universal Promtail Deployment (Smart Detection)
+  hosts: all
+  become: yes
+  vars:
+    # Set your OCI Watchtower Headscale IP here once
+    loki_push_url: "https://your-loki-domain.com/loki/api/v1/push"
+
+  tasks:
+    # 1. THE PRE-CHECK
+    - name: Check if Docker is installed on the target
+      command: docker --version
+      register: docker_check
+      ignore_errors: yes
+      changed_when: false
+
+    # ==========================================
+    # IF DOCKER IS INSTALLED
+    # ==========================================
+    - name: Deploy Promtail as Docker Container
+      block:
+        - name: Ensure /etc/promtail directory exists
+          file:
+            path: /etc/promtail
+            state: directory
+
+        - name: Generate Promtail Config for Docker
+          copy:
+            dest: /etc/promtail/config.yml
+            content: |
+              server:
+                http_listen_port: 9080
+                grpc_listen_port: 0
+              positions:
+                filename: /tmp/positions.yaml
+              clients:
+                - url: {{ loki_push_url }}
+              scrape_configs:
+                - job_name: docker
+                  docker_sd_configs:
+                    - host: unix:///var/run/docker.sock
+                      refresh_interval: 5s
+                  relabel_configs:
+                    - source_labels: ['__meta_docker_container_name']
+                      regex: '/(.*)'
+                      target_label: 'container'
+
+        - name: Truncate massive Docker logs to bypass Loki 7-Day Rule
+          shell: truncate -s 0 /var/lib/docker/containers/*/*-json.log
+          ignore_errors: yes
+
+        - name: Spin up Promtail Container
+          docker_container:
+            name: promtail
+            image: grafana/promtail:latest
+            state: started
+            restart_policy: unless-stopped
+            volumes:
+              - /var/run/docker.sock:/var/run/docker.sock:ro
+              - /etc/promtail/config.yml:/etc/promtail/config.yml:ro
+            command: -config.file=/etc/promtail/config.yml
+
+      when: docker_check.rc == 0
+
+    # ==========================================
+    # IF NO DOCKER (BARE OS)
+    # ==========================================
+    - name: Deploy Promtail as Systemd Service (Bare OS)
+      block:
+        - name: Ensure unzip is installed
+          apt:
+            name: unzip
+            state: present
+            update_cache: yes
+
+        - name: Download Promtail binary
+          unarchive:
+            src: https://github.com/grafana/loki/releases/download/v2.9.4/promtail-linux-amd64.zip
+            dest: /usr/local/bin/
+            remote_src: yes
+            mode: "0755"
+
+        - name: Rename Promtail binary
+          command: mv /usr/local/bin/promtail-linux-amd64 /usr/local/bin/promtail
+          args:
+            creates: /usr/local/bin/promtail
+
+        - name: Generate Promtail Config for Syslogs
+          copy:
+            dest: /etc/promtail-config.yaml
+            content: |
+              server:
+                http_listen_port: 9080
+                grpc_listen_port: 0
+              positions:
+                filename: /tmp/positions.yaml
+              clients:
+                - url: {{ loki_push_url }}
+              scrape_configs:
+                - job_name: system
+                  static_configs:
+                  - targets:
+                      - localhost
+                    labels:
+                      job: varlogs
+                      host: "{{ inventory_hostname }}"
+                      __path__: /var/log/*log
+
+        - name: Create Promtail Systemd Service
+          copy:
+            dest: /etc/systemd/system/promtail.service
+            content: |
+              [Unit]
+              Description=Promtail service
+              After=network.target
+
+              [Service]
+              Type=simple
+              User=root
+              ExecStart=/usr/local/bin/promtail -config.file /etc/promtail-config.yaml
+              Restart=on-failure
+
+              [Install]
+              WantedBy=multi-user.target
+
+        - name: Enable and start Promtail service
+          systemd:
+            name: promtail
+            enabled: yes
+            state: restarted
+            daemon_reload: yes
+
+      when: docker_check.rc != 0

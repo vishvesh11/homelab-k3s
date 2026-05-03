@@ -1,0 +1,114 @@
+---
+- name: Set up Headscale Server
+  hosts: oci_node
+  become: yes
+  tasks:
+    - name: Download Headscale binary (ARM64)
+      get_url:
+        url: https://github.com/juanfont/headscale/releases/download/v0.28.0/headscale_0.28.0_linux_arm64
+        dest: /usr/local/bin/headscale
+        mode: "0755"
+
+    - name: Create required directories
+      file:
+        path: "{{ item }}"
+        state: directory
+      loop:
+        - /etc/headscale
+        - /var/lib/headscale
+        - /var/run/headscale
+
+    - name: Download default config
+      get_url:
+        url: https://raw.githubusercontent.com/juanfont/headscale/main/config-example.yaml
+        dest: /etc/headscale/config.yaml
+
+    - name: Configure Headscale to listen to the internet
+      replace:
+        path: /etc/headscale/config.yaml
+        regexp: "127.0.0.1:8080"
+        replace: "0.0.0.0:8080"
+
+    - name: Set Server URL to public IP
+      replace:
+        path: /etc/headscale/config.yaml
+        regexp: "server_url: http://0.0.0.0:8080"
+        replace: "server_url: http://{{ ansible_host }}:8080"
+
+    - name: Open OCI OS Firewall (iptables)
+      shell: |
+        iptables -I INPUT 1 -p tcp --dport 8080 -j ACCEPT
+        iptables -I INPUT 1 -p udp --dport 41641 -j ACCEPT
+        netfilter-persistent save
+      ignore_errors: yes
+
+    - name: Create Headscale systemd service
+      copy:
+        dest: /etc/systemd/system/headscale.service
+        content: |
+          [Unit]
+          Description=headscale controller
+          After=network.target
+
+          [Service]
+          Type=simple
+          ExecStart=/usr/local/bin/headscale serve
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Start and enable Headscale
+      systemd:
+        name: headscale
+        state: started
+        enabled: yes
+        daemon_reload: yes
+
+    - name: Wait for database initialization
+      pause:
+        seconds: 5
+
+    - name: Create Headscale user
+      command: headscale users create k3s
+      ignore_errors: yes
+
+    - name: Get the numeric ID of the k3s user
+      shell: 'headscale users list | awk ''$2 == "k3s" {print $1}'''
+      register: k3s_user_id
+
+    - name: Generate an automated pre-auth key
+      command: "headscale preauthkeys create --user {{ k3s_user_id.stdout }} --reusable --expiration 24h"
+      register: headscale_key
+
+    - name: Save key to memory
+      add_host:
+        name: "HEADSCALE_DATA"
+        auth_key: "{{ headscale_key.stdout }}"
+
+- name: Install and Join Tailscale on all nodes
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install Tailscale client
+      shell: curl -fsSL https://tailscale.com/install.sh | sh
+      args:
+        creates: /usr/bin/tailscale
+
+    - name: Start Tailscale connection (Non-interactive)
+      shell: |
+        tailscale up --login-server http://{{ hostvars[groups['master'][0]]['ansible_host'] }}:8080 \
+        --authkey {{ hostvars['HEADSCALE_DATA']['auth_key'] }} \
+        --accept-routes --reset
+      register: tailscale_start
+      ignore_errors: yes
+
+    - name: Handle OCI Self-Registration (If needed)
+      when: "'master' in group_names"
+      shell: |
+        REG_KEY=$(tailscale status | grep "register" | awk -F'register/' '{print $2}' | awk '{print $1}')
+        if [ ! -z "$REG_KEY" ]; then
+          headscale nodes register --key $REG_KEY --user k3s
+        fi
+      ignore_errors: yes

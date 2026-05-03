@@ -1,0 +1,12 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mesh-cert
+  namespace: default
+spec:
+  secretName: mesh-tls-secret # This is the secret Traefik will look for
+  issuerRef:
+    name: letsencrypt-cloudflare # Matches your ClusterIssuer exactly
+    kind: ClusterIssuer
+  dnsNames:
+    - "your-mesh-domain.com"

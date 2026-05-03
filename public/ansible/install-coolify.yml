@@ -1,0 +1,31 @@
+---
+- name: Install and Verify Coolify PaaS
+  hosts: coolify_node
+  become: yes
+  tasks:
+    - name: Download and execute the Coolify installation script
+      shell: curl -fsSL https://get.coollabs.io/coolify/install.sh | bash
+      environment:
+        DO_NOT_TRACK: "1"
+      args:
+        creates: /data/coolify/source/docker-compose.yml
+
+    - name: Wait for Coolify Dashboard to bind to Port 8000
+      wait_for:
+        port: 8000
+        delay: 10
+        timeout: 300
+        state: started
+        msg: "Timeout: Coolify dashboard did not come up on port 8000."
+
+    - name: Verify Coolify Docker containers are running
+      shell: docker ps --format '{{"{{"}}.Names{{"}}"}}' | grep -i coolify
+      register: running_containers
+      changed_when: false
+
+    - name: Print Verification Status
+      debug:
+        msg:
+          - "Coolify Installation is Complete and Verified!"
+          - "Running Containers: {{ running_containers.stdout_lines | join(', ')
+            }}"

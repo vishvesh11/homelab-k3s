@@ -1,0 +1,16 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: headscale-route
+  namespace: default
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`your-mesh-domain.com`)
+      kind: Rule
+      services:
+        - name: headscale-host-service # The external service we created earlier
+          port: 8080
+  tls:
+    secretName: mesh-tls-secret # Traefik grabs the cert from cert-manager here

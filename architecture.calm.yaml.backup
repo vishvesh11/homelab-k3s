@@ -1,0 +1,747 @@
+# CALM OS - K3s Distributed Cluster Architecture
+# Composed Architecture Lightweight Modeling (CALM) Specification
+# Documentation for K3s distributed cluster with Headscale VPN mesh
+
+metadata:
+  title: "K3s Distributed Cluster with Headscale VPN Mesh"
+  description: "Infrastructure-as-Code setup for distributed K3s Kubernetes cluster spanning cloud and on-premises nodes connected via Headscale self-hosted VPN"
+  version: "1.0.0"
+  author: "vishvesh11"
+  created: "2026-04-18"
+  lastModified: "2026-04-18"
+  tags:
+    - kubernetes
+    - k3s
+    - headscale
+    - tailscale
+    - vpn-mesh
+    - distributed-cluster
+    - infrastructure-as-code
+    - terraform
+    - ansible
+
+nodes:
+  - id: "oci-control-plane"
+    name: "OCI K3s Control Plane"
+    type: "kubernetes-control-plane"
+    description: "K3s master node running on Oracle Cloud Infrastructure compute instance"
+    properties:
+      capabilities:
+        - "k3s-server"
+        - "etcd-datastore"
+        - "api-server"
+        - "scheduler"
+        - "controller-manager"
+      interfaces:
+        - id: "k3s-api"
+          name: "K3s API Server"
+          type: "kubernetes-api"
+          protocol: "https"
+          port: 6443
+        - id: "tailscale-mesh"
+          name: "Headscale VPN Interface"
+          type: "wireguard"
+          protocol: "udp"
+          port: 41641
+      provider: "oracle-cloud"
+      instanceType: "VM.Standard.A1.Flex"
+      os: "ubuntu-22.04"
+      k3sVersion: "latest"
+      nodeIP: "tailscale-dynamic"
+
+  - id: "ryzen-worker-node"
+    name: "Ryzen Proxmox Worker Node"
+    type: "kubernetes-worker"
+    description: "K3s agent node running on Proxmox virtual machine with Ryzen CPU"
+    properties:
+      capabilities:
+        - "k3s-agent"
+        - "container-runtime"
+        - "kubelet"
+        - "kube-proxy"
+        - "cni-plugin"
+      interfaces:
+        - id: "tailscale-mesh"
+          name: "Headscale VPN Interface"
+          type: "wireguard"
+          protocol: "udp"
+          port: 41641
+        - id: "mqtt-broker"
+          name: "MQTT Message Broker"
+          type: "mqtt"
+          protocol: "tcp"
+          port: 1883
+      provider: "proxmox-ve"
+      vmType: "qemu"
+      cpu: "ryzen-7-5700g"
+      ram: "16GB"
+      storage: "500GB"
+      nodeIP: "192.168.5.30"
+
+  - id: "coolify-paas"
+    name: "Coolify PaaS Platform"
+    type: "platform-service"
+    description: "Self-hosted PaaS platform running in Proxmox LXC container"
+    properties:
+      capabilities:
+        - "application-deployment"
+        - "container-orchestration"
+        - "ci-cd-pipelines"
+        - "reverse-proxy"
+        - "ssl-termination"
+      interfaces:
+        - id: "tailscale-mesh"
+          name: "Headscale VPN Interface"
+          type: "wireguard"
+          protocol: "udp"
+          port: 41641
+        - id: "web-interface"
+          name: "Coolify Web UI"
+          type: "http"
+          protocol: "https"
+          port: 443
+      containerType: "lxc"
+      os: "ubuntu-22.04"
+      resources:
+        cpu: 4
+        ram: "8GB"
+        storage: "50GB"
+      nodeIP: "192.168.5.31"
+
+  - id: "vision-analytics"
+    name: "Computer Vision Analytics"
+    type: "ai-service"
+    description: "AI-powered computer vision and analytics service with Frigate NVR"
+    properties:
+      capabilities:
+        - "object-detection"
+        - "video-processing"
+        - "motion-detection"
+        - "ai-inference"
+        - "event-storage"
+      interfaces:
+        - id: "tailscale-mesh"
+          name: "Headscale VPN Interface"
+          type: "wireguard"
+          protocol: "udp"
+          port: 41641
+        - id: "rtsp-streams"
+          name: "RTSP Video Streams"
+          type: "rtsp"
+          protocol: "tcp"
+          port: 8554
+        - id: "mqtt-events"
+          name: "MQTT Event Publishing"
+          type: "mqtt"
+          protocol: "tcp"
+          port: 1883
+      containerType: "lxc"
+      gpu: "coral-tpu"
+      detectors: "coral-edgetpu"
+      cameras: 3
+      nodeIP: "192.168.5.32"
+
+  - id: "headscale-vpn"
+    name: "Headscale VPN Server"
+    type: "vpn-server"
+    description: "Self-hosted VPN server providing WireGuard mesh networking"
+    properties:
+      capabilities:
+        - "wireguard-coordination"
+        - "mesh-networking"
+        - "access-control"
+        - "dns-resolution"
+        - "nat-traversal"
+      interfaces:
+        - id: "control-plane"
+          name: "Headscale Control API"
+          type: "grpc"
+          protocol: "tcp"
+          port: 50443
+        - id: "web-interface"
+          name: "Headscale Admin UI"
+          type: "http"
+          protocol: "https"
+          port: 443
+        - id: "wireguard-ports"
+          name: "WireGuard UDP Ports"
+          type: "wireguard"
+          protocol: "udp"
+          port: "41641"
+      provider: "kubernetes-deployment"
+      domain: "headscale.internal"
+      authMode: "pre-auth-keys"
+      aclPolicy: "mesh-networking"
+
+  - id: "proxmox-hypervisor"
+    name: "Proxmox VE Host"
+    type: "hypervisor"
+    description: "Proxmox Virtual Environment hypervisor hosting VMs and LXC containers"
+    properties:
+      capabilities:
+        - "vm-management"
+        - "container-management"
+        - "storage-management"
+        - "network-management"
+      version: "8.x"
+      hardware:
+        cpu: "AMD Ryzen 7 5700G"
+        ram: "64GB"
+        storage: "2TB NVMe"
+      network: "192.168.5.0/24"
+
+  - id: "oracle-cloud"
+    name: "Oracle Cloud Infrastructure"
+    type: "cloud-provider"
+    description: "Oracle Cloud Infrastructure providing compute resources"
+    properties:
+      capabilities:
+        - "compute-instances"
+        - "virtual-networking"
+        - "load-balancing"
+        - "object-storage"
+      region: "us-ashburn-1"
+      compartment: "homelab"
+      freeTier: true
+
+  - id: "terraform-provisioner"
+    name: "Terraform Infrastructure"
+    type: "iac-tool"
+    description: "Infrastructure as Code tool managing cloud and virtualization resources"
+    properties:
+      capabilities:
+        - "resource-provisioning"
+        - "state-management"
+        - "configuration-drift-detection"
+      version: "1.12.2"
+      providers:
+        - "proxmox"
+        - "oci"
+      stateBackend: "local"
+
+  - id: "ansible-configurator"
+    name: "Ansible Configuration"
+    type: "configuration-tool"
+    description: "Configuration management tool handling system setup and application deployment"
+    properties:
+      capabilities:
+        - "system-configuration"
+        - "application-deployment"
+        - "orchestration"
+        - "idempotent-execution"
+      version: "2.9+"
+      inventory: "dynamic"
+      playbooks:
+        - "k3s.yml"
+        - "mesh.yml"
+        - "coolify.yml"
+    - id: "oci-control-plane"
+      name: "OCI K3s Control Plane"
+      type: "kubernetes-control-plane"
+      description: "K3s master node running on Oracle Cloud Infrastructure compute instance"
+      capabilities:
+        - "k3s-server"
+        - "etcd-datastore"
+        - "api-server"
+        - "scheduler"
+        - "controller-manager"
+      interfaces:
+        - id: "k3s-api"
+          name: "K3s API Server"
+          type: "kubernetes-api"
+          protocol: "https"
+          port: 6443
+        - id: "tailscale-mesh"
+          name: "Headscale VPN Interface"
+          type: "wireguard"
+          protocol: "udp"
+          port: 41641
+      properties:
+        provider: "oracle-cloud"
+        instanceType: "VM.Standard.A1.Flex"
+        os: "ubuntu-22.04"
+        k3sVersion: "latest"
+        nodeIP: "tailscale-dynamic"
+
+    - id: "ryzen-worker-node"
+      name: "Ryzen Proxmox Worker Node"
+      type: "kubernetes-worker"
+      description: "K3s agent node running on Proxmox virtual machine with Ryzen CPU"
+      capabilities:
+        - "k3s-agent"
+        - "container-runtime"
+        - "kubelet"
+        - "kube-proxy"
+        - "cni-plugin"
+      interfaces:
+        - id: "tailscale-mesh"
+          name: "Headscale VPN Interface"
+          type: "wireguard"
+          protocol: "udp"
+          port: 41641
+        - id: "mqtt-broker"
+          name: "MQTT Message Broker"
+          type: "mqtt"
+          protocol: "tcp"
+          port: 1883
+      properties:
+        provider: "proxmox-ve"
+        vmType: "qemu"
+        cpu: "ryzen-7-5700g"
+        ram: "16GB"
+        storage: "500GB"
+        nodeIP: "192.168.5.30"
+
+    - id: "coolify-paas"
+      name: "Coolify PaaS Platform"
+      type: "platform-service"
+      description: "Self-hosted PaaS platform running in Proxmox LXC container"
+      capabilities:
+        - "application-deployment"
+        - "container-orchestration"
+        - "ci-cd-pipelines"
+        - "reverse-proxy"
+        - "ssl-termination"
+      interfaces:
+        - id: "tailscale-mesh"
+          name: "Headscale VPN Interface"
+          type: "wireguard"
+          protocol: "udp"
+          port: 41641
+        - id: "web-interface"
+          name: "Coolify Web UI"
+          type: "http"
+          protocol: "https"
+          port: 443
+      properties:
+        containerType: "lxc"
+        os: "ubuntu-22.04"
+        resources:
+          cpu: 4
+          ram: "8GB"
+          storage: "50GB"
+        nodeIP: "192.168.5.31"
+
+    - id: "vision-analytics"
+      name: "Computer Vision Analytics"
+      type: "ai-service"
+      description: "AI-powered computer vision and analytics service with Frigate NVR"
+      capabilities:
+        - "object-detection"
+        - "video-processing"
+        - "motion-detection"
+        - "ai-inference"
+        - "event-storage"
+      interfaces:
+        - id: "tailscale-mesh"
+          name: "Headscale VPN Interface"
+          type: "wireguard"
+          protocol: "udp"
+          port: 41641
+        - id: "rtsp-streams"
+          name: "RTSP Video Streams"
+          type: "rtsp"
+          protocol: "tcp"
+          port: 8554
+        - id: "mqtt-events"
+          name: "MQTT Event Publishing"
+          type: "mqtt"
+          protocol: "tcp"
+          port: 1883
+      properties:
+        containerType: "lxc"
+        gpu: "coral-tpu"
+        detectors: "coral-edgetpu"
+        cameras: 3
+        nodeIP: "192.168.5.32"
+
+    - id: "headscale-vpn"
+      name: "Headscale VPN Server"
+      type: "vpn-server"
+      description: "Self-hosted VPN server providing WireGuard mesh networking"
+      capabilities:
+        - "wireguard-coordination"
+        - "mesh-networking"
+        - "access-control"
+        - "dns-resolution"
+        - "nat-traversal"
+      interfaces:
+        - id: "control-plane"
+          name: "Headscale Control API"
+          type: "grpc"
+          protocol: "tcp"
+          port: 50443
+        - id: "web-interface"
+          name: "Headscale Admin UI"
+          type: "http"
+          protocol: "https"
+          port: 443
+        - id: "wireguard-ports"
+          name: "WireGuard UDP Ports"
+          type: "wireguard"
+          protocol: "udp"
+          port: "41641"
+      properties:
+        provider: "kubernetes-deployment"
+        domain: "headscale.internal"
+        authMode: "pre-auth-keys"
+        aclPolicy: "mesh-networking"
+
+  # Relationships between systems
+  relationships:
+    - id: "control-plane-to-workers"
+      source: "oci-control-plane"
+      target: "ryzen-worker-node"
+      type: "kubernetes-control"
+      description: "K3s control plane manages worker node lifecycle and scheduling"
+      properties:
+        protocol: "https"
+        authentication: "node-token"
+        encryption: "tls-1.3"
+
+    - id: "vpn-mesh-control-plane"
+      source: "oci-control-plane"
+      target: "headscale-vpn"
+      type: "network-connectivity"
+      description: "Control plane connects to VPN mesh for pod-to-pod communication"
+      properties:
+        interface: "tailscale0"
+        subnet: "100.64.0.0/24"
+        encryption: "wireguard"
+
+    - id: "vpn-mesh-worker"
+      source: "ryzen-worker-node"
+      target: "headscale-vpn"
+      type: "network-connectivity"
+      description: "Worker node participates in VPN mesh for cluster communication"
+      properties:
+        interface: "tailscale0"
+        subnet: "192.168.5.0/24"
+        encryption: "wireguard"
+
+    - id: "vpn-mesh-paas"
+      source: "coolify-paas"
+      target: "headscale-vpn"
+      type: "network-connectivity"
+      description: "PaaS platform accessible via VPN mesh"
+      properties:
+        interface: "tailscale0"
+        subnet: "192.168.5.0/24"
+        encryption: "wireguard"
+
+    - id: "vpn-mesh-analytics"
+      source: "vision-analytics"
+      target: "headscale-vpn"
+      type: "network-connectivity"
+      description: "Analytics service connected via VPN mesh"
+      properties:
+        interface: "tailscale0"
+        subnet: "192.168.5.0/24"
+        encryption: "wireguard"
+
+    - id: "mqtt-communication"
+      source: "vision-analytics"
+      target: "ryzen-worker-node"
+      type: "message-passing"
+      description: "Computer vision service publishes events to MQTT broker on worker node"
+      properties:
+        protocol: "mqtt"
+        topics: ["frigate/events", "frigate/+/+"]
+        qos: 1
+
+    - id: "paas-deployment"
+      source: "coolify-paas"
+      target: "oci-control-plane"
+      type: "application-deployment"
+      description: "PaaS platform deploys applications to Kubernetes cluster"
+      properties:
+        interface: "kubernetes-api"
+        authentication: "kubeconfig"
+        namespace: "coolify-system"
+
+  # Infrastructure components
+  infrastructure:
+    - id: "proxmox-hypervisor"
+      name: "Proxmox VE Host"
+      type: "hypervisor"
+      description: "Proxmox Virtual Environment hypervisor hosting VMs and LXC containers"
+      capabilities:
+        - "vm-management"
+        - "container-management"
+        - "storage-management"
+        - "network-management"
+      properties:
+        version: "8.x"
+        hardware:
+          cpu: "AMD Ryzen 7 5700G"
+          ram: "64GB"
+          storage: "2TB NVMe"
+        network: "192.168.5.0/24"
+
+    - id: "oracle-cloud"
+      name: "Oracle Cloud Infrastructure"
+      type: "cloud-provider"
+      description: "Oracle Cloud Infrastructure providing compute resources"
+      capabilities:
+        - "compute-instances"
+        - "virtual-networking"
+        - "load-balancing"
+        - "object-storage"
+      properties:
+        region: "us-ashburn-1"
+        compartment: "homelab"
+        freeTier: true
+
+    - id: "terraform-provisioner"
+      name: "Terraform Infrastructure"
+      type: "iac-tool"
+      description: "Infrastructure as Code tool managing cloud and virtualization resources"
+      capabilities:
+        - "resource-provisioning"
+        - "state-management"
+        - "configuration-drift-detection"
+      properties:
+        version: "1.12.2"
+        providers:
+          - "proxmox"
+          - "oci"
+        stateBackend: "local"
+
+    - id: "ansible-configurator"
+      name: "Ansible Configuration"
+      type: "configuration-tool"
+      description: "Configuration management tool handling system setup and application deployment"
+      capabilities:
+        - "system-configuration"
+        - "application-deployment"
+        - "orchestration"
+        - "idempotent-execution"
+      properties:
+        version: "2.9+"
+        inventory: "dynamic"
+        playbooks:
+          - "k3s.yml"
+          - "mesh.yml"
+          - "coolify.yml"
+
+  # Data flows and communication patterns
+  dataFlows:
+    - id: "pod-to-pod-traffic"
+      name: "Pod-to-Pod Communication"
+      description: "Encrypted inter-pod communication across cluster nodes via VPN mesh"
+      source: "oci-control-plane"
+      target: "ryzen-worker-node"
+      protocol: "vxlan"
+      encryption: "wireguard"
+      properties:
+        cni: "flannel"
+        interface: "tailscale0"
+        mtu: 1420
+
+    - id: "api-server-traffic"
+      name: "Kubernetes API Traffic"
+      description: "Control plane API communication between master and worker nodes"
+      source: "ryzen-worker-node"
+      target: "oci-control-plane"
+      protocol: "https"
+      encryption: "tls-1.3"
+      properties:
+        port: 6443
+        authentication: "client-certificates"
+
+    - id: "video-stream-processing"
+      name: "Video Stream Processing"
+      description: "RTSP video streams from cameras processed by computer vision service"
+      source: "vision-analytics"
+      target: "external-cameras"
+      protocol: "rtsp"
+      properties:
+        cameras: 3
+        resolution: "640x360"
+        fps: 20
+        codec: "h264"
+
+    - id: "event-notifications"
+      name: "Event Notifications"
+      description: "Motion detection and object recognition events published via MQTT"
+      source: "vision-analytics"
+      target: "ryzen-worker-node"
+      protocol: "mqtt"
+      properties:
+        topics: ["frigate/events", "frigate/motion/+", "frigate/objects/+"]
+        retention: "7d"
+        qos: 1
+
+  # Governance and policies
+  governance:
+    security:
+      - id: "vpn-encryption"
+        name: "VPN Mesh Encryption"
+        description: "All inter-node communication encrypted via WireGuard"
+        type: "encryption-policy"
+        scope: "network"
+        properties:
+          algorithm: "ChaCha20-Poly1305"
+          keyExchange: "Noise_IK"
+
+      - id: "api-authentication"
+        name: "API Authentication"
+        description: "Kubernetes API secured with TLS and client certificates"
+        type: "authentication-policy"
+        scope: "api"
+        properties:
+          tlsVersion: "1.3"
+          certValidity: "365d"
+
+      - id: "access-control"
+        name: "Network Access Control"
+        description: "Headscale ACLs control which nodes can communicate"
+        type: "access-control-policy"
+        scope: "network"
+        properties:
+          policyEngine: "headscale"
+          defaultPolicy: "deny-all"
+
+    compliance:
+      - id: "infrastructure-as-code"
+        name: "Infrastructure as Code"
+        description: "All infrastructure changes version-controlled and auditable"
+        type: "compliance-requirement"
+        scope: "infrastructure"
+        properties:
+          tools: ["terraform", "ansible"]
+          reviewRequired: true
+
+      - id: "configuration-drift"
+        name: "Configuration Drift Prevention"
+        description: "Automated detection and correction of configuration drift"
+        type: "compliance-requirement"
+        scope: "configuration"
+        properties:
+          monitoring: "terraform-plan"
+          remediation: "ansible-playbooks"
+
+  # Deployment and operational procedures
+  procedures:
+    provisioning:
+      - id: "infrastructure-setup"
+        name: "Infrastructure Provisioning"
+        description: "Automated provisioning of cloud and virtualization resources"
+        steps:
+          - "terraform init"
+          - "terraform plan"
+          - "terraform apply"
+        tools: ["terraform"]
+        estimatedDuration: "15m"
+
+      - id: "network-setup"
+        name: "VPN Mesh Configuration"
+        description: "Establish Headscale VPN mesh network connectivity"
+        steps:
+          - "ansible-playbook mesh.yml"
+          - "verify tailscale status"
+          - "test inter-node connectivity"
+        tools: ["ansible", "tailscale"]
+        estimatedDuration: "10m"
+
+      - id: "cluster-deployment"
+        name: "K3s Cluster Deployment"
+        description: "Deploy and configure K3s distributed cluster"
+        steps:
+          - "ansible-playbook k3s.yml"
+          - "wait for cluster readiness"
+          - "deploy networking (flannel)"
+          - "verify node registration"
+        tools: ["ansible", "kubectl"]
+        estimatedDuration: "5m"
+
+    monitoring:
+      - id: "cluster-health"
+        name: "Cluster Health Monitoring"
+        description: "Monitor Kubernetes cluster and node health"
+        commands:
+          - "kubectl get nodes"
+          - "kubectl get pods --all-namespaces"
+          - "kubectl top nodes"
+        frequency: "continuous"
+
+      - id: "network-connectivity"
+        name: "Network Connectivity Checks"
+        description: "Verify VPN mesh and inter-node connectivity"
+        commands:
+          - "tailscale status"
+          - "ping <tailscale-ip>"
+          - "curl -k https://<api-server>:6443"
+        frequency: "5m"
+
+    backup:
+      - id: "etcd-backup"
+        name: "etcd Data Backup"
+        description: "Backup Kubernetes etcd datastore"
+        commands:
+          - "kubectl get secrets -A > secrets-backup.yaml"
+          - "kubectl get configmaps -A > configmaps-backup.yaml"
+        frequency: "daily"
+        retention: "30d"
+
+  # Risk assessment and mitigation
+  risks:
+    - id: "single-control-plane"
+      name: "Single Control Plane Failure"
+      description: "Current setup has single control plane node"
+      impact: "high"
+      probability: "medium"
+      mitigation:
+        - "Add additional control plane nodes"
+        - "Implement etcd clustering"
+        - "Configure load balancer"
+
+    - id: "vpn-connectivity"
+      name: "VPN Mesh Disruption"
+      description: "Headscale server failure affects cluster communication"
+      impact: "high"
+      probability: "low"
+      mitigation:
+        - "Deploy Headscale with high availability"
+        - "Configure backup VPN server"
+        - "Implement network redundancy"
+
+    - id: "resource-contention"
+      name: "Resource Contention"
+      description: "Multiple services competing for host resources"
+      impact: "medium"
+      probability: "medium"
+      mitigation:
+        - "Implement resource limits and requests"
+        - "Monitor resource usage"
+        - "Scale vertically or horizontally"
+
+  # Future enhancements and roadmap
+  roadmap:
+    - id: "multi-control-plane"
+      name: "Multi-Control Plane Setup"
+      description: "Add high availability control plane with etcd clustering"
+      priority: "high"
+      timeline: "Q2-2026"
+      dependencies: ["additional-oci-instances"]
+
+    - id: "observability-stack"
+      name: "Observability Stack"
+      description: "Implement comprehensive monitoring and logging"
+      priority: "medium"
+      timeline: "Q3-2026"
+      components: ["prometheus", "grafana", "loki", "tempo"]
+
+    - id: "disaster-recovery"
+      name: "Disaster Recovery"
+      description: "Implement automated backup and recovery procedures"
+      priority: "medium"
+      timeline: "Q4-2026"
+      components: ["velero", "etcd-backups", "infrastructure-restore"]
+
+    - id: "security-hardening"
+      name: "Security Hardening"
+      description: "Implement advanced security measures and compliance"
+      priority: "high"
+      timeline: "Q2-2026"
+      components: ["network-policies", "pod-security", "audit-logging"]

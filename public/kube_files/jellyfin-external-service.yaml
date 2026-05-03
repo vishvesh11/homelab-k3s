@@ -1,0 +1,52 @@
+---
+# 1. Jellyfin Headless Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: jellyfin-bridge
+  namespace: default
+spec:
+  ports:
+    - port: 8096
+      targetPort: 8096
+---
+# 2. Jellyfin Manual Endpoint (Points to your subnet)
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: jellyfin-bridge
+  namespace: default
+subsets:
+  - addresses:
+      - ip: YOUR_JELLYFIN_IP
+    ports:
+      - port: 8096
+---
+# 3. Jellyfin Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jellyfin-ingress
+  namespace: default
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    external-dns.alpha.kubernetes.io/target: "YOUR_IP"
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+    traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - your-jellyfin-domain.com
+      secretName: jellyfin-tls
+  rules:
+    - host: your-jellyfin-domain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jellyfin-bridge
+                port:
+                  number: 8096

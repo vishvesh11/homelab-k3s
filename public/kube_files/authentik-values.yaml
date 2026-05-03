@@ -1,0 +1,39 @@
+authentik:
+  secret_key: "YOUR_SECRET_KEY_HERE"
+  # This tells Authentik how to connect to the DB
+  postgresql:
+    password: "YOUR_PASSWORD_HERE"
+
+server:
+  nodeSelector:
+    topology.kubernetes.io/zone: "cloud"
+
+  ingress:
+    enabled: true
+    ingressClassName: "traefik"
+    hosts:
+      - your-domain.com
+    paths:
+      - /
+    tls:
+      - secretName: authentik-tls
+        hosts:
+          - your-domain.com
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+      external-dns.alpha.kubernetes.io/target: "YOUR_IP_HERE"
+      external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+      traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+
+worker:
+  nodeSelector:
+    topology.kubernetes.io/zone: "cloud"
+
+# FIXED: Postgres Subchart Syntax
+postgresql:
+  enabled: true
+  auth:
+    password: "YOUR_PASSWORD_HERE"
+  primary:
+    nodeSelector:
+      topology.kubernetes.io/zone: "cloud"

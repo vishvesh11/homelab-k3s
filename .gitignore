@@ -83,3 +83,5 @@ temp/
 
 node_modules
 /frigate/frigate.py
+/kube_files/*
+/ansible/*  

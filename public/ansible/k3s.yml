@@ -1,0 +1,45 @@
+---
+- name: Deploy K3s Master (Control Plane)
+  hosts: master
+  become: yes
+  tasks:
+    - name: Install K3s server on OCI
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | sh -s - server \
+          --bind-address=YOUR_MASTER_IP \
+          --advertise-address=YOUR_MASTER_IP \
+          --node-ip=YOUR_MASTER_IP \
+          --flannel-iface=tailscale0 \
+          --tls-san=YOUR_MASTER_IP
+      args:
+        creates: /etc/rancher/k3s/k3s.yaml
+
+    - name: Wait for K3s node-token to be generated
+      ansible.builtin.wait_for:
+        path: /var/lib/rancher/k3s/server/node-token
+
+    - name: Retrieve K3s node token
+      ansible.builtin.slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: node_token_b64
+
+    - name: Set fact for node token
+      ansible.builtin.set_fact:
+        k3s_token: "{{ node_token_b64['content'] | b64decode | trim }}"
+
+- name: Deploy K3s Worker (Ryzen Node)
+  hosts: worker
+  become: yes
+  tasks:
+    - name: Wait for Master API server to be reachable
+      ansible.builtin.wait_for:
+        host: YOUR_MASTER_IP
+        port: 6443
+        timeout: 120
+
+    - name: Install K3s agent on Ryzen VM
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | K3S_URL=https://YOUR_MASTER_IP:6443 K3S_TOKEN="{{ hostvars[groups['master'][0]]['k3s_token'] }}" sh -s - \
+          --node-ip=YOUR_WORKER_IP
+      args:
+        creates: /etc/systemd/system/k3s-agent.service.env

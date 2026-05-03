@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: delhi-otd-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: "https://github.com/vishvesh11/real-time-data-analysis.git"
+    targetRevision: main
+    path: helm/realtime-app
+    helm:
+      # This injects the IP securely at deploy-time, overriding the Git values
+      values: |
+        dashboard:
+          ingress:
+            annotations:
+              external-dns.alpha.kubernetes.io/target: "80.225.195.89"
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: projects
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false

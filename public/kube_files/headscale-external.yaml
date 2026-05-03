@@ -1,0 +1,16 @@
+apiVersion: traefik.io/v1alpha1 # <--- THIS IS THE FIX
+kind: IngressRoute
+metadata:
+  name: headscale-route
+  namespace: default
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`your-mesh-domain.com`)
+      kind: Rule
+      services:
+        - name: headscale-host-service
+          port: 8080
+  tls:
+    secretName: mesh-tls-secret

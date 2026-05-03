@@ -1,0 +1,21 @@
+---
+- name: Provision Coolify Node
+  hosts: coolify-server
+  become: yes
+  tasks:
+    - name: Install curl and dependencies
+      apt:
+        name: curl
+        state: present
+        update_cache: yes
+
+    - name: Install Tailscale
+      shell: curl -fsSL https://tailscale.com/install.sh | sh
+
+    - name: Join Tailscale / Headscale Mesh
+      shell: tailscale up --authkey={{ your_tailscale_auth_key }}
+        --login-server=https://your-headscale-url.com
+      # Note: Grab the Tailscale IP after this runs. Let's assume it's YOUR_TAILSCALE_IP
+
+    - name: Install Coolify
+      shell: curl -fsSL https://get.coollabs.io/coolify/install.sh | bash

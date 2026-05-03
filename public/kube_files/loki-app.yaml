@@ -1,0 +1,78 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: loki
+    targetRevision: 6.29.0
+    helm:
+      values: |
+        deploymentMode: SingleBinary
+        loki:
+          auth_enabled: false
+          commonConfig:
+            replication_factor: 1
+          storage:
+            type: filesystem
+          schemaConfig:
+            configs:
+              - from: "2024-01-01"
+                store: tsdb
+                object_store: filesystem
+                schema: v13
+                index:
+                  prefix: loki_index_
+                  period: 24h
+        singleBinary:
+          replicas: 1
+          nodeSelector:
+            location: cloud-watchtower
+          persistence:
+            size: 5Gi
+        read:
+          replicas: 0
+        backend:
+          replicas: 0
+        write:
+          replicas: 0
+        gateway:
+          enabled: false
+        monitoring:
+          selfMonitoring:
+            enabled: false
+            grafanaAgent:
+              installOperator: false
+          lokiCanary:
+            enabled: false
+          dashboards:
+            enabled: false
+          rules:
+            enabled: false
+          serviceMonitor:
+            enabled: false
+        ingress:
+          enabled: true
+          ingressClassName: traefik
+          annotations:
+            cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+            external-dns.alpha.kubernetes.io/target: "<YOUR_IP>" # i used tailscale ip here for security reasons as loki has no auth.
+            external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+            traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+
+          hosts:
+            - loki.<YOUR_DOMAIN>
+          tls:
+            - secretName: loki-tls
+              hosts:
+                - loki.<YOUR_DOMAIN>
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,0 +1,47 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: uptime-kuma
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://dirsigler.github.io/uptime-kuma-helm
+    chart: uptime-kuma
+    targetRevision: 2.15.0
+    helm:
+      values: |
+        
+        nodeSelector:
+          location: cloud-watchtower
+          
+        # Use your existing ingress/cert-manager setup
+        ingress:
+          enabled: true
+          className: traefik
+          annotations:
+            cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+            external-dns.alpha.kubernetes.io/target: "<YOUR_IP>"
+            external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+            traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+          hosts:
+            - host: status.<YOUR_DOMAIN>
+              paths:
+                - path: /
+                  pathType: ImplementationSpecific
+          tls:
+            - secretName: uptime-kuma-tls
+              hosts:
+                - status.<YOUR_DOMAIN>
+                
+        # Persist the SQLite database so you don't lose monitors on restart
+        persistence:
+          enabled: true
+          size: 2Gi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

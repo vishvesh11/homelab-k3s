@@ -1,0 +1,38 @@
+all:
+  vars:
+    # Don't ask for yes/no when connecting for the first time
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+
+  children:
+    master:
+      vars:
+        # The default cloud-init user for Ubuntu on OCI
+        ansible_user: ubuntu
+      hosts:
+        oci_node:
+          ansible_host: YOUR_OCI_TAILSCALE_IP
+
+    worker:
+      vars:
+        # CHANGE THIS to your Ryzen VM's actual SSH user
+        ansible_user: ubuntu
+      hosts:
+        ryzen_node:
+          ansible_host: YOUR_RYZEN_LOCAL_IP
+
+    paas:
+      vars:
+        # LXC templates typically use root by default
+        ansible_user: root
+      hosts:
+        coolify_node:
+          # Ansible connects via the local LAN IP first to install Tailscale
+          ansible_host: YOUR_COOLIFY_LOCAL_IP
+
+    vision_analytics:
+      vars:
+        # LXC containers use root by default for SSH access
+        ansible_user: root
+      hosts:
+        vision_node:
+          ansible_host: YOUR_VISION_IP

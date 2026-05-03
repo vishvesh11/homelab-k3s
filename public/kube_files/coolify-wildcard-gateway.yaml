@@ -1,0 +1,79 @@
+---
+# 1. The Headless Service (No selector)
+apiVersion: v1
+kind: Service
+metadata:
+  name: coolify-external-bridge
+  namespace: default
+spec:
+  ports:
+    - port: 80
+      targetPort: 80
+---
+# 2. The Manual Endpoint (Replaces ExternalName)
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: coolify-external-bridge
+  namespace: default
+subsets:
+  - addresses:
+      - ip: YOUR_COOLIFY_IP
+    ports:
+      - port: 80
+---
+# 2. The Wildcard Router & SSL Provisioner
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: coolify-wildcard-ingress
+  namespace: default
+  annotations:
+    # Tell Cert-Manager to get a cert using your Cloudflare setup
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    # Tell External-DNS to create wildcard records in Cloudflare
+    external-dns.alpha.kubernetes.io/target: "YOUR_IP"
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+spec:
+  ingressClassName: traefik
+  tls:
+    # This requests ONE single certificate that covers all subdomains for these 3 roots
+    - hosts:
+        - "*.your-devcoolify-domain1.com"
+        - "*.your-devcoolify-domain2.com"
+        - "*.your-devcoolify-domain3.com"
+      secretName: coolify-wildcard-tls-secret
+  rules:
+    # Route 1
+    - host: "*.your-devcoolify-domain1.com"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: coolify-external-bridge
+                port:
+                  number: 80
+    # Route 2
+    - host: "*.your-devcoolify-domain2.com"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: coolify-external-bridge
+                port:
+                  number: 80
+    # Route 3
+    - host: "*.your-devcoolify-domain3.com"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: coolify-external-bridge
+                port:
+                  number: 80
